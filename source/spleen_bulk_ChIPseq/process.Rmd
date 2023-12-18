@@ -1,0 +1,198 @@
+---
+title: "Analysis of chipseq"
+output: html_notebook
+---
+
+```{r setup}
+library(here)
+library(tidyverse)
+library(csaw)
+library(edgeR)
+library(limma)
+library(omisc)
+library(ChIPseeker)
+```
+
+
+# Load data
+
+```{r}
+filtered.data <- read_rds("/Users/sunxin/Documents/Projects/chipseq/20211220/Analysis_in_R/5.csaw/csaw_filtered_subset.rds")
+```
+
+```{r}
+y <- asDGEList(filtered.data)
+y$genes <- as.data.frame(granges(filtered.data))
+colnames(y) <- colnames(filtered.data)
+y$samples$group <- factor(sub("-.*", "", colnames(y)), levels = c("WT", "KO"))
+summary(y)
+```
+
+```{r}
+plotMDS(y, top = Inf, col = c("blue", "red")[y$samples$group])
+```
+
+# Filter by counts
+
+```{r}
+ave_cpm <- edgeR::aveLogCPM(y, log = TRUE)
+qplot(ave_cpm, bins = 30)
+```
+
+```{r}
+# select cpm 
+table(ave_cpm > 1.5)
+```
+
+```{r}
+y <- y[ave_cpm > 1.5, ]
+```
+
+```{r}
+plotMDS(y, top = Inf, col = c("blue", "red")[y$samples$group])
+```
+
+# Annotate windows
+
+```{r}
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene::TxDb.Mmusculus.UCSC.mm10.knownGene
+```
+
+```{r}
+res <- annotatePeak(GRanges(y$genes), TxDb = txdb, annoDb = "org.Mm.eg.db")
+```
+
+```{r}
+ggplot(res@annoStat |> mutate(Feature = fct_reorder(Feature, Frequency)), aes(Feature, Frequency)) +
+  geom_col() +
+  coord_flip()
+```
+
+```{r}
+d <- as.data.frame(res@anno)
+```
+
+```{r}
+y$genes <- left_join(y$genes, d)
+```
+
+# Statistical analysis
+
+```{r}
+design <- model.matrix(~0+group, y$samples)
+colnames(design) <- levels(y$samples$group)
+design
+```
+
+# Voom
+
+```{r}
+v <- voom(y, design, span = 0.5, save.plot = TRUE)
+```
+
+```{r}
+omisc::plot_voom(v) + geom_density_2d()
+```
+
+```{r}
+fit <- lmFit(v, design)
+```
+
+```{r}
+con <- makeContrasts(KOvsWT = KO - WT, levels = design)
+con
+```
+
+```{r}
+fit2 <- contrasts.fit(fit, con)
+fit2 <- eBayes(fit2)
+```
+
+```{r}
+topTable(fit2, n = 50)
+```
+
+```{r}
+res <- decideTests(fit2, p.value = 0.05)
+```
+
+```{r}
+vennDiagram(res)
+```
+
+```{r}
+z <- y[res[, 1] != 0, ]
+z$genes <- z$genes |> mutate(annotation_simple = sub("Intron \\(.*", "Intron", annotation))
+z$genes <- z$genes |> mutate(annotation_simple = sub("Exon \\(.*", "Intron", annotation_simple))
+```
+
+
+```{r}
+d <- z$genes
+d <- d |> dplyr::count(annotation_simple)
+d <- d |> mutate(annotation_simple = fct_reorder(annotation_simple, n))
+ggplot(d, aes(annotation_simple, n)) +
+  geom_col() +
+  coord_flip()
+```
+
+
+```{r}
+z$genes |> 
+  dplyr::count(SYMBOL, sort = TRUE)
+```
+
+
+```{r}
+a <- z$genes |> filter(SYMBOL == "Ifng")
+a
+```
+
+```{r}
+pos <- which(z$genes$SYMBOL == "Ifng")
+pos
+```
+
+```{r}
+pos.label <- z[pos,]$genes$SYMBOL
+pos.label
+```
+
+```{r}
+library(ComplexHeatmap)
+```
+
+```{r}
+ann_mark <- rowAnnotation(foo=anno_mark(at=pos, labels=pos.label))
+```
+
+```{r}
+plot_heatmap(z, show_row_names=FALSE, right_annotation=ann_mark)
+```
+
+```{r fig.width=7, fig.height=10}
+plot_heatmap(z, show_row_names = FALSE, row_split = z$genes$annotation_simple,right_annotation=ann_mark)
+```
+
+# Functional enrichment 
+
+## Gene ontology
+
+```{r}
+go <- goana(fit2, coef = "KOvsWT", geneid = "geneId", FDR = 0.01, species = "Mm")
+```
+
+```{r}
+topGO(go, "Up", ontology = "BP")
+topGO(go, "Down", ontology = "BP")
+```
+
+```{r}
+omisc::plot_enrichment(go, ontology = "BP")
+```
+
+# Session information
+
+```{r}
+sessionInfo()
+```

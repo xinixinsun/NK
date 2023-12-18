@@ -1,0 +1,111 @@
+---
+title: "Canek integration process of WT_OCT2 and KO_OCT2 data"
+output: html_notebook
+---
+
+```{r,verbose=TRUE}
+library(tidyverse)
+library(Seurat)
+library(Canek)
+library(scmisc)
+set.seed(1)
+```
+
+```{r}
+x <- list(
+  WT = read_rds("/Users/sunxin/Documents/Projects/OCT2_sc/analysis/output/wt/WT_OCT2_process.rds"),
+  KO = read_rds("/Users/sunxin/Documents/Projects/OCT2_sc/analysis/output/ko/KO_OCT2_process.rds")
+)
+```
+
+# Naive merge 
+
+```{r}
+x <- Reduce(merge, x)
+```
+
+```{r}
+x <- NormalizeData(x)
+x <- FindVariableFeatures(x, nfeatures = 5000)
+VariableFeaturePlot(x)
+x <- ScaleData(x)
+```
+
+```{r}
+x <- RunPCA(x)
+ElbowPlot(x, ndims=50)
+```
+
+```{r}
+x <- RunUMAP(x, dims = 1:20)
+```
+
+```{r}
+x <- FindNeighbors(x, dims = 1:20)
+x <- FindClusters(x, algorithm = 4, res = .6)
+```
+
+
+# Canek 
+
+```{r}
+set.seed(1)
+```
+
+```{r}
+x <- RunCanek(x,"background",nfeature=5000)
+```
+
+```{r}
+x <- ScaleData(x, verbose = FALSE)
+```
+
+```{r}
+x <- RunPCA(x)
+ElbowPlot(x, ndims=50)
+```
+
+```{r}
+DimPlot(x, group.by="background")
+```
+
+```{r}
+DimHeatmap(x, dims=1:6)
+```
+
+
+```{r}
+x <- RunUMAP(x, dims = 1:20)
+```
+
+```{r}
+x <- FindNeighbors(x, dims = 1:20)
+x <- FindClusters(x, algorithm = 4, res = .6)
+```
+
+
+# Export 
+
+# sampling WT & KO
+
+```{r}
+y <- sample_cells(x, group="background")
+table(y$background)
+```
+
+# y export
+
+```{r}
+write_rds(y, "/Users/sunxin/Documents/Projects/OCT2_sc/analysis/integration/output/OCT2_integration_process_sampling.rds")
+```
+
+# session info 
+
+```{r}
+sessionInfo()
+```
+
+
+
+
+

@@ -1,0 +1,202 @@
+---
+title: "Analysis of Canek integration"
+output: html_notebook
+---
+
+```{r,verbose=TRUE}
+library(tidyverse)
+library(Seurat)
+library(Canek)
+library(scmisc)
+set.seed(1)
+theme_set(cowplot::theme_cowplot())
+```
+
+# load data
+
+```{r}
+x <- read_rds("/Users/sunxin/Documents/Projects/NKsc_tumor/analysis_in_R/4.spleen_TIL_integration/output/WT_KO_spleen_integration_process_livespleen_nk_sampling.rds")
+x
+```
+
+```{r}
+DefaultAssay(x) <- "RNA"
+```
+
+## Fig.2A
+
+```{r}
+DimPlot(x, split.by="background", label = TRUE) + NoAxes()+
+   ggtitle("Canek integration of splenic WT and KO NK cells")+
+  theme(plot.title = element_text(size=13, face = "bold.italic"))
+```
+
+## Fig.2D
+
+```{r}
+marker <- c("Pou2f2","Gzmk","Gzmb","Ifng","Cxcr6","Prf1")
+```
+
+```{r, fig.width=12, fig.height=7}
+VlnPlot(x, features = marker, pt.size = 0.05, split.by = "background")
+```
+
+
+## Fig.S2B
+
+```{r, fig.width=10, fig.height=7}
+FeaturePlot(x, marker, order=TRUE, label = TRUE, label.size = 3.5, pt.size = 0.2, ncol = 3) &NoLegend() + NoAxes()
+```
+
+## Fig.2B
+
+
+```{r}
+ggplot(x[[]],aes(seurat_clusters, fill=background)) +
+  geom_bar(position = "fill")
+```
+
+```{r}
+deg <- FindAllMarkers(x,max.cells.per.ident = 500, verbose = FALSE)
+```
+
+
+```{r}
+top <- deg%>%filter(p_val_adj<0.01, abs(avg_log2FC)>1)
+top
+```
+
+```{r}
+top_genes <- top_deg(deg)
+top_genes
+```
+
+```{r}
+y <-sample_cells(x, group = "seurat_clusters")
+```
+
+## Fig.S2A
+
+```{r, fig.width=15, fig.height=12}
+plot_heatmap(y[top_genes$gene,], column_split= y$seurat_clusters)
+```
+
+- Process ADT
+
+```{r}
+DefaultAssay(x) <- "ADT"
+```
+
+```{r}
+x <- NormalizeData(x, normalization.method="CLR")
+```
+
+
+```{r}
+m <- GetAssayData(x, assay="ADT", slot="data")
+```
+
+```{r}
+d <- data.frame(CD27 = m["CD27", ] > .5, CD11B = m["CD11B", ] > .5)
+```
+
+```{r}
+d$total <- apply(d, 1, sum)
+```
+
+
+```{r}
+d <- get_coord(x, add.exprs=c("CD27", "CD11B"), assay="ADT")
+d_WT <- d |> filter(background == "WT_spleen")
+d_KO <- d |> filter(background == "KO_spleen")
+```
+
+```{r}
+ggplot(d_WT, aes(CD11B, CD27)) +
+  geom_point(size=.5) + 
+  geom_density_2d(color="red") +
+  geom_vline(xintercept=0.28, color="limegreen", lwd=1) +
+  geom_hline(yintercept=0.5, color="limegreen", lwd=1) +
+  labs(title="WT_spleen") +
+
+ggplot(d_KO, aes(CD11B, CD27)) +
+  geom_point(size=.5) + 
+  geom_density_2d(color="red") +
+  geom_vline(xintercept=0.6, color="limegreen", lwd=1) +
+  geom_hline(yintercept=0.8, color="limegreen", lwd=1) + # .75
+  labs(title="KO_spleen")
+```
+
+
+```{r}
+d_WT <- d_WT |> mutate(stage=case_when(
+  CD27 >= 0.5 & CD11B < 0.28 ~ "R1",
+  CD27 >= 0.5 & CD11B >= 0.28 ~ "R2",
+  CD27 < 0.5 & CD11B >= 0.28 ~ "R3",
+  TRUE ~ "R0"
+))
+d_WT |> dplyr::count(stage)
+
+d_KO <- d_KO |> mutate(stage=case_when(
+  CD27 >= 0.8 & CD11B < 0.6 ~ "R1",
+  CD27 >= 0.8 & CD11B >= 0.6 ~ "R2",
+  CD27 < 0.8 & CD11B >= 0.6 ~ "R3",
+  TRUE ~ "R0"
+))
+d_KO |> dplyr::count(stage)
+
+ggplot(d_WT, aes(CD11B, CD27, color=stage)) +
+  geom_point(size=.5) + 
+  geom_density_2d(color="black") +
+  geom_vline(xintercept=0.28, color="limegreen", lwd=1) +
+  geom_hline(yintercept=0.5, color="limegreen", lwd=1) +
+  labs(title="WT") +
+
+ggplot(d_KO, aes(CD11B, CD27, color=stage)) +
+  geom_point(size=.5) + 
+  geom_density_2d(color="black") +
+  geom_vline(xintercept=0.6, color="limegreen", lwd=1) +
+  geom_hline(yintercept=0.8, color="limegreen", lwd=1) +
+  labs(title="KO")
+```
+
+## Fig.S2D
+
+```{r}
+d <- rbind(d_WT, d_KO)
+ggplot(d, aes(background, fill=stage)) +
+  geom_bar(position="fill")
+```
+
+
+```{r}
+d <- d[colnames(x), ]
+x <- AddMetaData(x, d$stage, col.name="stage")
+```
+
+## Fig.S2C
+
+```{r}
+DimPlot(x, group.by="stage", split.by = "background")  + NoAxes()
+```
+
+```{r}
+DefaultAssay(x)<- "RNA"
+```
+
+## Fig.S2E
+
+```{r}
+VlnPlot(x, "Ifng", pt.size = .01, split.by = "background", group.by = "stage" )
+```
+
+## Fig.S2E
+
+```{r}
+VlnPlot(x, "Cxcr6", pt.size = .01, split.by = "background", group.by = "stage" )
+```
+
+
+```{r}
+sessionInfo()
+```

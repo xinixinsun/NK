@@ -1,0 +1,120 @@
+---
+title: "Canek integration process of WT/KO_spleen_live NK"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(Seurat)
+library(Canek)
+library(scmisc)
+library(slingshot)
+library(singleCellHaystack)
+library(ComplexHeatmap)
+set.seed(1)
+```
+
+
+# live nk
+
+```{r}
+x <- list(
+  KO_NK = read_rds("/Users/sunxin/Documents/Projects/NKsc_tumor/analysis_in_R/4.spleen_TIL_integration/output/KO_spleen/KO_live_NKonly_process.rds"),
+  WT_NK = read_rds("/Users/sunxin/Documents/Projects/NKsc_tumor/analysis_in_R/4.spleen_TIL_integration/output/WT_spleen/WT_live_NKonly_process.rds")
+)
+```
+
+## Naive merge 
+
+```{r}
+x <- Reduce(merge, x)
+```
+
+
+```{r}
+x <- NormalizeData(x)
+x <- FindVariableFeatures(x, nfeatures = 5000)
+VariableFeaturePlot(x)
+x <- ScaleData(x, verbose =FALSE)
+```
+
+```{r}
+x <- RunPCA(x)
+ElbowPlot(x, ndims=50)
+```
+
+```{r}
+x <- RunUMAP(x, dims = 1:20)
+```
+
+```{r,message=FALSE,warning=FALSE}
+x <- FindNeighbors(x, dims = 1:20)
+x <- FindClusters(x, algorithm = "leiden", res = .6)
+```
+
+```{r}
+DimHeatmap(x, dims = 1:6)
+```
+
+## Canek 
+
+```{r}
+set.seed(1)
+```
+
+
+```{r}
+x <- RunCanek(x,"background",nfeature=5000)
+```
+
+```{r}
+x <- ScaleData(x, verbose = FALSE)
+```
+
+```{r}
+x <- RunPCA(x)
+ElbowPlot(x, ndims=50)
+```
+
+```{r}
+DimPlot(x, group.by="background")
+```
+
+```{r}
+DimHeatmap(x, dims=1:6)
+```
+
+```{r}
+x <- RunUMAP(x, dims = 1:20)
+```
+
+```{r warning=FALSE}
+x <- FindNeighbors(x, dims = 1:20)
+x <- FindClusters(x, algorithm = "leiden", res = .6)
+```
+
+
+```{r}
+x$background <- factor(x=x$background, levels = c("WT_spleen","KO_spleen"))
+```
+
+
+## y,Sampling WT & KO
+
+```{r}
+y <- sample_cells(x, group="background")
+table(y$background)
+```
+
+## y export
+
+```{r}
+#write_rds(y, "/Users/sunxin/Documents/Projects/NKsc_tumor/analysis_in_R/4.spleen_TIL_integration/output/WT_KO_spleen_integration_process_livespleen_nk_sampling.rds")
+```
+
+```{r}
+sessionInfo()
+```
+
+
+

@@ -1,0 +1,63 @@
+---
+title: "Heatmap for RNAseq"
+output: html_notebook
+---
+
+
+```{r,verbose=TRUE}
+library(readxl)
+library(tidyverse)
+library(edgeR)
+library(limma)
+library(omisc) 
+library(d10misc) 
+library(ComplexHeatmap)
+library(patchwork)
+theme_set(cowplot::theme_cowplot())
+```
+
+# RNA
+
+## TFs in RNA 
+
+- Load data
+
+```{r}
+x <- read_rds("/Users/sunxin/Documents/Projects/atacseq/RNAseq/output/rnaseq/dge.rds")
+x
+```
+
+```{r}
+x <- x[, x$samples$condition == "Ctl"]
+x
+```
+
+```{r}
+keep <- rowSums(cpm(x) > 1) >= 2
+table(keep)
+x <- x[keep, , keep.lib.sizes = TRUE]
+
+x <- calcNormFactors(x, method = "TMM")
+```
+
+# Statistical analysis
+
+
+## load TFs list 
+
+```{r} 
+genes <- c( "Arnt2" ,  "Bmi1" ,   "Zfp36l1", "Klf5" ,   "Camk4",   "Cdkn2d" , "Cebpd"  , "Cops2" ,  "Egr2" ,   "Eomes" ,  "Fosl2" ,  "Gas7"  ,  "Hdac5", "Hmga1" ,  "Ifnar2" , "Irf2" ,   "Irf4"  ,  "Klf2" ,   "Lef1"  ,  "Mbd2" ,   "Mef2c" ,  "Foxk1"  , "Cited2" , "Nab2" ,  "Nfatc1" , "Nfatc2" , "Nfe2l1" , "Nfkb1" ,  "Pou2f2"  ,"Tcf7l2" , "Tle4"   , "Ncoa4"  , "Snai3" ,  "Rab11a"  ,"Prdm5"  , "Uhrf2" ,  "Ell2" ,   "Trerf1" , "Rab8b"  ,"Dmrta1",  "E2f2" ,   "Irf2bp1" )
+id <-which(x$genes$symbol %in% genes)
+foo<- x[id,]
+```
+
+# Fig.5G
+
+```{r, fig.width=9, fig.height=8}
+omisc::plot_heatmap(foo,scale=TRUE, symbol.col="symbol")
+```
+
+```{r}
+sessionInfo()
+```
+

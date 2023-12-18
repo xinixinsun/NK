@@ -1,0 +1,117 @@
+---
+title: "OCT2_WT process"
+output: html_notebook
+---
+
+```{r, verbose=TRUE}
+library(tidyverse)
+library(Seurat)
+library(scmisc)
+library(cowplot)
+library(patchwork)
+library(ggplot2)
+library(reticulate)
+set.seed(1)
+```
+
+
+# load the data 
+
+```{r}
+m <- Read10X_h5("/Users/sunxin/Documents/Projects/OCT2_sc/WT_filtered_feature_bc_matrix.h5")
+```
+
+```{r}
+colnames(m) <- paste0("WT:", colnames(m))
+```
+
+```{r}
+x <- CreateSeuratObject(counts = m, project = "OCT2")
+```
+ 
+```{r}
+x$background <- "WT"
+```
+
+```{r}
+x <- NormalizeData(x)
+```
+
+```{r}
+x <- FindVariableFeatures(x, nfeatures = 5000) 
+VariableFeaturePlot(x)
+x <- ScaleData(x)
+x <-  RunPCA(x)
+```
+
+```{r} 
+ElbowPlot(x, ndims = 50)
+```
+
+```{r}
+DimPlot(x)
+```
+
+```{r}
+x<- RunUMAP(x, dims = 1:20)
+```
+ 
+```{r}
+x <- FindNeighbors(x, dims = 1:20)
+```
+
+```{r message=TRUE, warning=FALSE}
+x <- FindClusters(x, algorithm = 4, resolution = 0.6)
+```
+
+```{r}
+DimPlot(x, label = TRUE) + NoLegend()
+```
+
+# mito 
+
+```{r}
+x <- PercentageFeatureSet(x, "mt-", col.name = "mito.percentage")
+```
+
+```{r, fig.width=8, fig.height=6}
+VlnPlot(x, c("nCount_RNA", "nFeature_RNA","mito.percentage"),ncol = 1, pt.size=0.1)
+```
+
+```{r, fig.width=8}
+mtgene <- grep("mt-",rownames(x), value = TRUE)
+
+DoHeatmap(x, mtgene, slot = "data") +
+  scale_fill_gradient(low = "white", high = "red") +
+  guides(color = FALSE)
+```
+
+
+```{r, fig.width=8}
+genes <- grep("^Rpl[0-9][0-9]$", rownames(x), value = TRUE)
+DoHeatmap(x, genes, slot = "data") +
+  scale_fill_gradient(low = "white", high = "red") +
+  guides(color = FALSE)
+
+genes <- grep("^Rps[0-9][0-9]$", rownames(x), value = TRUE)
+DoHeatmap(x, genes, slot = "data") +
+  scale_fill_gradient(low = "white", high = "red") +
+  guides(color = FALSE)
+```
+
+# cell cycle
+
+```{r}
+cc <- sapply(cc.genes.updated.2019, str_to_sentence)
+x <- CellCycleScoring(x, cc$s.genes, cc$g2m.genes)
+```
+
+```{r fig.width=10, fig.height=3}
+FeaturePlot(x, c("S.Score", "G2M.Score"), order = TRUE, blend = TRUE, label=TRUE)
+```
+
+# session info 
+
+```{r}
+sessionInfo()
+```

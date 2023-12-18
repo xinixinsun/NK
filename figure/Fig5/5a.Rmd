@@ -1,0 +1,40 @@
+---
+title: "ATACseq annotation"
+output: html_notebook
+---
+
+```{r,verbose=TRUE}
+library(tidyverse)
+library(SummarizedExperiment)
+library(ChIPseeker)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene) 
+library(org.Mm.eg.db)
+```
+
+# Load data
+
+```{r}
+x <- read_rds("/Users/sunxin/Documents/Projects/atacseq/raw/data/count.rds")
+x
+```
+
+```{r}
+peaks <- granges(x)
+peaks
+```
+
+```{r}
+peaks <- annotatePeak(peaks, TxDb = TxDb.Mmusculus.UCSC.mm10.knownGene, annoDb = "org.Mm.eg.db")
+peaks
+```
+
+# Fig.5A
+
+```{r}
+plotAnnoPie(peaks)
+```
+
+```{r}
+sessionInfo()
+```
+

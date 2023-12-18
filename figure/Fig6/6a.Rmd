@@ -1,0 +1,43 @@
+---
+title: "Chipseq annotation"
+output: html_notebook
+---
+
+```{r, versbose=TRUE}
+library(tidyverse)
+library(SummarizedExperiment)
+library(ChIPseeker)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene) 
+library(org.Mm.eg.db)
+```
+
+# Load data 
+
+```{r}
+x <- read_rds("/Users/sunxin/Documents/Projects/chipseq/20211220/count_black.rds")
+x
+```
+
+```{r}
+peaks <- granges(x)
+peaks
+```
+
+
+```{r}
+peaks <- annotatePeak(peaks,TxDb = TxDb.Mmusculus.UCSC.mm10.knownGene, annoDb = "org.Mm.eg.db")
+peaks
+```
+
+## Fig.6A
+
+```{r}
+plotAnnoPie(peaks)
+```
+
+# sessioninfo
+
+```{r}
+sessionInfo()
+```
+

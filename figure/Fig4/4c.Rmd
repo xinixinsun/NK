@@ -1,0 +1,39 @@
+---
+title: "Canek integration analysis of WT_spleen and WT_TIL data"
+output: html_notebook
+---
+
+```{r,verbose=TRUE}
+library(tidyverse)
+library(Seurat)
+set.seed(1)
+```
+
+# load data
+
+```{r}
+x <- read_rds("~/NEW_NK_TIL_spleen_integration_process_livenk_sampling.rds")
+```
+
+```{r}
+DefaultAssay(x) <- "RNA"
+```
+
+## Fig.S4M
+
+```{r}
+VlnPlot(x, "Zc3h12a", pt.size=.01, group.by = "background")+
+stat_summary(fun.y = mean, geom='crossbar', width=0.4, colour ="red")
+```
+
+## Fig.S4N
+
+```{r}
+VlnPlot(x, "Cxcr6", pt.size=.01, group.by = "background")+
+stat_summary(fun.y = mean, geom='crossbar', width=0.4, colour ="red")
+```
+
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,102 @@
+---
+title: "Canek integration process of TIL-tumor (WT&KO)"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(Seurat)
+library(Canek)
+library(scmisc)
+set.seed(1)
+```
+
+```{r}
+x <- list(
+  WT = read_rds("~/WT_tumor/WT_tumor_process.rds"),
+  KO = read_rds("~/KO_tumor/KO_tumor_process.rds")
+)
+```
+
+
+# Naive merge 
+
+```{r}
+x <- Reduce(merge, x)
+```
+
+```{r}
+x <- NormalizeData(x)
+x <- FindVariableFeatures(x, nfeatures = 5000)
+VariableFeaturePlot(x)
+x <- ScaleData(x)
+```
+
+```{r}
+x <- RunPCA(x)
+ElbowPlot(x, ndims=50)
+```
+
+```{r}
+x <- RunUMAP(x, dims = 1:20)
+```
+
+```{r warning=FALSE}
+x <- FindNeighbors(x, dims = 1:20)
+x <- FindClusters(x, algorithm = "leiden", res = .6)
+```
+
+# Canek 
+
+```{r}
+set.seed(1)
+```
+
+```{r}
+x <- RunCanek(x,"background",nfeature=5000)
+```
+
+```{r}
+x <- ScaleData(x)
+```
+
+```{r}
+x <- RunPCA(x)
+ElbowPlot(x, ndims=50)
+```
+
+```{r}
+DimPlot(x, group.by="background")
+```
+
+
+```{r}
+x <- RunUMAP(x, dims = 1:20)
+```
+
+```{r,message=TRUE,warning=FALSE}
+x <- FindNeighbors(x, dims = 1:20)
+x <- FindClusters(x, algorithm = "leiden", res = .6)
+```
+
+```{r}
+x$background <- factor(x=x$background, levels = c("WT_tumor","KO_tumor"))
+```
+
+
+# Export 
+
+
+```{r}
+y <- sample_cells(x, group="background")
+```
+
+
+```{r}
+write_rds(y, "~/tumor_integration_process_sampling.rds")
+```
+
+```{r}
+sessionInfo()
+```
+

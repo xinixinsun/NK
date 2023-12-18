@@ -1,0 +1,142 @@
+---
+title: "Analysis of ATAC-seq Ctl samples"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(patchwork)
+theme_set(cowplot::theme_cowplot())
+library(edgeR)
+library(limma)
+library(omisc)
+
+library(ComplexHeatmap)
+```
+
+# Load data
+
+```{r}
+x <- read_rds("/Users/sunxin/Documents/Projects/atacseq/new_update_20220912/dge.rds")
+x
+```
+
+# Filter samples
+
+```{r}
+x <- x[, x$samples$condition == "Ctl"]
+x
+```
+
+# Filter and normalize
+
+```{r}
+keep <- rowSums(cpm(x) > 1) >= 2
+table(keep)
+x <- x[keep, , keep.lib.sizes = TRUE]
+
+x <- calcNormFactors(x, method = "TMM")
+```
+
+# Statistical analysis
+
+```{r}
+design <- model.matrix(~ 0 + background, x$samples)
+rownames(design) <- colnames(x)
+colnames(design) <- sub("background", "", colnames(design))
+design
+```
+
+```{r voom}
+v <- voom(x, design, plot = FALSE, save.plot = TRUE)
+plot_voom(v)
+```
+
+```{r}
+fit <- lmFit(v, design)
+```
+
+```{r}
+con <- makeContrasts(
+  KOvsWT=KO - WT,
+  levels = design
+)
+con
+```
+
+```{r}
+fit2 <- contrasts.fit(fit, con)
+fit2 <- eBayes(fit2)
+```
+
+```{r pvalue_hist}
+plot_hist(fit2)
+```
+
+```{r}
+topTable(fit2)
+```
+
+```{r}
+top <- topTable(fit2, coef = "KOvsWT", number = Inf)
+head(top)
+```
+
+## Ctl
+
+```{r}
+ids <- rownames(topTable(fit2, coef="KOvsWT", p.value=0.05, sort.by="logFC", n=200))
+```
+
+```{r fig.width=7, fig.height=28}
+plot_heatmap(x[ids, ], scale=TRUE)
+```
+
+```{r}
+top_100 <- head(top, 100)
+```
+
+```{r}
+plot_heatmap(x[rownames(top_100), ], show_row_names=FALSE)
+```
+
+```{r}
+pos <- which(top$SYMBOL %in% c("Ifng", "Pou2f2"))
+pos
+```
+
+```{r}
+pos.label <- top[pos, ]$SYMBOL
+pos.label
+```
+
+```{r}
+ann_mark <- rowAnnotation(foo=anno_mark(at=pos, labels=pos.label))
+```
+
+```{r fig.width=2, fig.height=6}
+plot_heatmap(x[rownames(top), ], show_row_names=FALSE, right_annotation=ann_mark)
+```
+
+# DAR distribution
+
+```{r}
+top_dar <- topTable(fit2, coef="KOvsWT", n=Inf)
+head(top_dar)
+```
+
+```{r}
+top_dar <- top_dar |> 
+  mutate(DAR=factor(ifelse(adj.P.Val < 0.01, "KOvsWT", "Not DAR"))) |> 
+  mutate(DAR=relevel(DAR, "Not DAR")) |> 
+  drop_na()
+
+ggplot(top_dar, aes(DAR, fill=Region)) +
+  geom_bar(position="fill")
+```
+
+# Session information
+
+```{r}
+sessionInfo()
+```

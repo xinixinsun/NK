@@ -1,0 +1,142 @@
+---
+title: "Canek integration analysis of TIL-NK (WT/KO)"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(Seurat)
+library(Canek)
+library(scmisc)
+set.seed(1)
+theme_set(cowplot::theme_cowplot())
+```
+
+# Load data
+
+```{r}
+y <- read_rds("~/NK_integration_process_livenk_sampling.rds")
+```
+
+```{r}
+DefaultAssay(y) <- "RNA"
+```
+
+
+```{r}
+DimPlot(y, split.by="background", label = TRUE) + NoLegend()+
+   ggtitle("Canek integration of WT and KO NK cells (TIL)")+
+  theme(plot.title = element_text(size=13, face = "bold.italic"))
+```
+
+```{r, fig.width=12, fig.height=4}
+VlnPlot(y, c("nCount_RNA", "nFeature_RNA", "mito.percentage"), pt.size = .02)
+```
+
+```{r}
+k <- y[,!y$seurat_clusters == "11"]
+DimPlot(k, label=TRUE)
+set.seed(1)
+```
+
+```{r}
+k <- FindVariableFeatures(k, nfeatures = 5000)
+VariableFeaturePlot(k)
+k <- ScaleData(k)
+k <- RunPCA(k)
+```
+
+```{r}
+ElbowPlot(k,ndims = 50)
+```
+
+```{r}
+k <- RunUMAP(k, dim = 1:20)
+```
+
+```{r}
+DimPlot(k, label = TRUE) 
+```
+
+```{r}
+k <- FindNeighbors(k, dims = 1:20)
+```
+
+```{r, message=TRUE, warning=FALSE}
+k <- FindClusters(k, algorithm = 4, resolution = 0.6)
+```
+
+## Fig.S4D
+
+```{r}
+DimPlot(k, split.by="background", label = TRUE) + NoAxes()+
+   ggtitle("Integration analysis of WT and KO NK cells from TIL single cell samples")+
+  theme(plot.title = element_text(size=13, face = "bold.italic"))
+```
+
+## Fig.S4E
+## Fig.S4F 
+
+```{r, fig.width=5, fig.height=3}
+VlnPlot(k, features = c("Ifng","Gzmb"), group.by = "background", pt.size = 0.0)
+```
+
+## Fig.S4I
+
+```{r}
+chemo<- c("Cxcr1","Cxcr2","Cxcr3","Cxcr4","Cxcr5","Cxcr6",
+          "Ccr1","Ccr2","Ccr3","Ccr4","Ccr5","Ccr6","Ccr7","Ccr8","Ccr9","Ccr10",
+          "Xcr1","Cx3cr1")
+```
+
+
+```{r}
+DotPlot(k, features = chemo,group.by = "background") + RotatedAxis() +
+    scale_colour_distiller(palette = "RdBu")
+```
+
+## Fig.4D
+
+```{r, fig.width=4, fig.height=5}
+VlnPlot(k, "Cxcr6", group.by = "background", pt.size = 0.02)
+```
+
+
+```{r}
+k<- NormalizeData(k)
+deg <- FindAllMarkers(k,max.cells.per.ident = 500, verbose = FALSE)
+```
+
+## Fig.S4H
+
+```{r}
+plot_volcano(deg, n=20, fdr=0.05, groups = "10")
+```
+
+```{r}
+top <- deg%>%filter(p_val_adj<0.01, abs(avg_log2FC)>1)
+```
+
+```{r}
+top_genes <- top_deg(deg)
+```
+
+
+```{r}
+z <-sample_cells(k, group = "seurat_clusters")
+```
+
+## Fig.S4G
+
+```{r, fig.width=8, fig.height=12}
+plot_heatmap(z[top_genes$gene,], column_split= z$seurat_clusters)
+```
+
+
+```{r}
+sessionInfo()
+```
+
+
+
+

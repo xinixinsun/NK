@@ -1,0 +1,126 @@
+---
+title: "ATACseq analysis"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(edgeR)
+library(limma)
+library(omisc)
+library(d10misc)
+library(ComplexHeatmap)
+library(scmisc)
+library(patchwork)
+source("/Users/sunxin/Documents/Projects/atacseq/func.R")
+theme_set(cowplot::theme_cowplot())
+```
+
+# Load data
+
+```{r}
+x <- read_rds("/Users/sunxin/Documents/Projects/atacseq/new_update_20220912/dge.rds")
+x
+```
+
+
+# Filter and normalize
+
+```{r}
+keep <- rowSums(cpm(x) > 10) >= 2
+table(keep)
+x <- x[keep, , keep.lib.sizes = TRUE]
+
+x <- calcNormFactors(x, method = "TMM")
+x
+```
+
+# Statistical analysis
+
+```{r}
+design <- model.matrix(~ 0 + group, x$samples)
+rownames(design) <- colnames(x)
+colnames(design) <- sub("group", "", colnames(design))
+design
+```
+
+```{r}
+v <- voom(x, design, plot = FALSE, save.plot = TRUE)
+plot_voom(v)
+```
+
+```{r}
+fit <- lmFit(v, design)
+```
+
+```{r}
+con <- makeContrasts(
+  background = (KO.Ctl + KO.Sti) / 2  - (WT.Ctl + WT.Sti) / 2,
+  condition = (WT.Sti + KO.Sti) / 2  - (WT.Ctl + KO.Ctl) / 2,
+  KO = KO.Sti - KO.Ctl,
+  WT = WT.Sti - WT.Ctl,
+  Sti = KO.Sti - WT.Sti,
+  Ctl = KO.Ctl - WT.Ctl,
+  levels = design
+)
+con
+
+fit2 <- contrasts.fit(fit, con)
+
+fit2 <- eBayes(fit2)
+```
+
+
+```{r}
+to_tidy(fit2$p.value, "gene", "group", "p.value") %>%
+  filter(group != "(Intercept)") %>%
+  ggplot(aes(p.value)) +
+    geom_histogram(binwidth = .01) + 
+    facet_wrap(~group)
+```
+
+```{r}
+topTable(fit2)
+```
+
+```{r}
+top <- topTable(fit2, coef = "Ctl", number = Inf)
+head(top)
+```
+
+# Functional enrichment
+
+## Gene ontology
+
+```{r}
+go <- goana(fit2, coef = "Ctl", geneid = "geneId", FDR = 0.01, species = "Mm")
+```
+
+```{r}
+topGO(go, "Up", ontology = "MF")
+topGO(go, "Down", ontology = "MF")
+```
+
+# Fig.5F
+```{r, fig.width=10, fig.height=5}
+omisc::plot_enrichment(go, ontology = "MF")
+```
+
+
+- Sti & MF
+
+```{r}
+go2 <- goana(fit2, coef = "Sti", geneid = "geneId", FDR = 0.01, species = "Mm")
+```
+
+# Fig.S5G
+```{r, fig.width=10, fig.height=5}
+omisc::plot_enrichment(go2, ontology = "MF")
+```
+
+# session info
+
+```{r}
+sessionInfo()
+```
+

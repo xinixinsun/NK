@@ -1,0 +1,132 @@
+---
+title: "Canek integration analysis of OCT2 WT and KO"
+output: html_notebook
+---
+
+```{r, verbose=TRUE}
+library(tidyverse)
+library(Seurat)
+library(Canek)
+library(scmisc)
+set.seed(1)
+theme_set(cowplot::theme_cowplot())
+```
+
+# load data
+
+```{r}
+x <- read_rds("/Users/sunxin/Documents/Projects/OCT2_sc/analysis/integration/output/OCT2_integration_process_sampling.rds")
+x
+```
+
+```{r}
+DefaultAssay(x) <- "RNA"
+```
+
+```{r}
+DimPlot(x, split.by="background", label = TRUE) + NoAxes()+ NoLegend()+
+  theme(plot.title = element_text(size=13, face = "bold.italic"))
+```
+
+```{r}
+markers <- list(
+  "Pro" = c("Top2a", "Mki67"), 
+  "T" = c("Cd3d", "Cd3e", "Cd4", "Cd8a", "Foxp3"), 
+  "NK" = c("Ncr1", "Nkg7")
+)
+```
+
+```{r}
+DotPlot(x, features = markers, dot.scale = 6)+ RotatedAxis()+
+  scale_colour_distiller(palette = "RdBu")
+```
+
+- Remove cluster 6 and 11
+
+```{r, fig.width=12, fig.height=4}
+VlnPlot(x, c("nCount_RNA", "nFeature_RNA", "mito.percentage"), pt.size = .02)
+```
+
+```{r}
+k <- x[,!x$seurat_clusters %in% c ("6","11")] # remove dying cells and T cells
+set.seed(1)
+```
+
+
+```{r}
+k <- FindVariableFeatures(k, nfeatures = 5000)
+VariableFeaturePlot(k)
+k <- ScaleData(k)
+k <- RunPCA(k)
+```
+
+```{r}
+ElbowPlot(k,ndims = 50)
+```
+
+```{r}
+k <- RunUMAP(k, dim = 1:20)
+```
+
+```{r}
+k <- FindNeighbors(k, dims = 1:20)
+```
+
+```{r warning=FALSE}
+k <- FindClusters(k, algorithm = 4, resolution = 0.6, verbose = FALSE)
+```
+
+# Fig6J
+
+```{r}
+DimPlot(k, split.by="background", label = TRUE) + NoAxes() +
+  theme(plot.title = element_text(size=13, face = "bold.italic"))
+```
+
+# FigS6G 
+
+```{r}
+ggplot(k[[]], aes(seurat_clusters, fill = background)) +
+  geom_bar(position = "fill")
+```
+
+
+# Fig6K
+
+```{r}
+VlnPlot(k, "Ifng", pt.size=.0, group.by = "background")+
+stat_summary(fun.y = median, geom='crossbar', width=0.4, colour ="red")+
+  ggtitle("Ifng median")
+```
+
+- Find all markers
+
+```{r}
+deg <- FindAllMarkers(k,max.cells.per.ident = 500, verbose = FALSE)
+```
+
+
+```{r}
+top <- deg%>%filter(p_val_adj<0.01, abs(avg_log2FC)>1)
+```
+
+```{r}
+top_genes <- top_deg(deg)
+```
+
+```{r}
+k2 <-sample_cells(k, group = "seurat_clusters")
+```
+
+# FigS6H
+
+```{r, fig.width=8, fig.height=12}
+plot_heatmap(k2[top_genes$gene,], column_split= k2$seurat_clusters)
+```
+
+# Sessioninfo
+
+```{r}
+sessionInfo()
+```
+

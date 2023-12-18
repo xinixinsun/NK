@@ -1,0 +1,97 @@
+---
+title: "KO_tumor_process"
+output: html_notebook
+---
+
+```{r message=TRUE, warning=FALSE}
+library(tidyverse)
+library(Seurat)
+library(scmisc)
+library(cowplot)
+library(patchwork)
+set.seed(1)
+```
+
+# load the data 
+
+```{r}
+m <- Read10X_h5("~/KO_tumor_filtered_feature_bc_matrix.h5")
+```
+
+```{r}
+colnames(m) <- paste0("KO:", colnames(m))
+x <- CreateSeuratObject(counts = m, project = "NK_tumor")
+```
+
+```{r}
+x$background <- "KO_tumor"
+```
+
+```{r }
+x <- NormalizeData(x)
+x <- FindVariableFeatures(x, nfeatures = 5000) 
+VariableFeaturePlot(x)
+x <- ScaleData(x, verbose = FALSE)
+x <-  RunPCA(x)
+ElbowPlot(x, ndims = 50)
+```
+
+```{r}
+DimPlot(x)
+```
+
+```{r, message=TRUE, warning=FALSE}
+x<- RunUMAP(x, dims = 1:20)
+x <- FindNeighbors(x, dims = 1:20)
+x <- FindClusters(x, algorithm = 4, resolution = 0.6)
+DimPlot(x, label = TRUE) + NoLegend()
+```
+ 
+# mito 
+
+```{r}
+x <- PercentageFeatureSet(x, "mt-", col.name = "mito.percentage")
+```
+
+```{r, fig.width=8, fig.height=6}
+VlnPlot(x, c("nCount_RNA", "nFeature_RNA","mito.percentage"),ncol = 1, pt.size=0.1)
+```
+
+```{r}
+write_rds(x, "~/KO_tumor_process.rds")
+```
+
+
+```{r}
+sessionInfo()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

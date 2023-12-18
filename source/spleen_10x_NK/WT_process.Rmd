@@ -1,0 +1,130 @@
+---
+title: "WT_process"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(Seurat)
+library(scmisc)
+library(cowplot)
+library(patchwork)
+library(ggplot2)
+set.seed(1)
+```
+
+
+# load data 
+
+```{r}
+m <- Read10X_h5("~/WT_filtered_feature_bc_matrix.h5")
+```
+
+```{r}
+colnames(m$`Gene Expression` ) <- paste0("WT:", colnames(m$`Gene Expression`))
+```
+
+```{r}
+x <- CreateSeuratObject(counts = m$`Gene Expression` , project = "NK_spleen")
+```
+
+```{r}
+x$background <- "WT_spleen"
+```
+
+```{r}
+x <- NormalizeData(x)
+```
+
+```{r}
+x <- FindVariableFeatures(x, nfeatures = 5000) 
+VariableFeaturePlot(x)
+x <- ScaleData(x,verbose = FALSE)
+x <-  RunPCA(x)
+```
+
+```{r} 
+ElbowPlot(x, ndims = 50)
+```
+
+```{r}
+x<- RunUMAP(x, dims = 1:20)
+```
+ 
+```{r}
+x <- FindNeighbors(x, dims = 1:20)
+```
+
+```{r message=TRUE, warning=FALSE}
+x <- FindClusters(x, algorithm = 4, resolution = 0.6)
+```
+
+```{r}
+DimPlot(x, label = TRUE) + NoLegend()
+```
+
+# mito 
+
+```{r}
+x <- PercentageFeatureSet(x, "mt-", col.name = "mito.percentage")
+```
+
+```{r, fig.width=8, fig.height=6}
+VlnPlot(x, c("nCount_RNA", "nFeature_RNA","mito.percentage"),ncol = 1, pt.size=0.1)
+```
+
+# remove dying cells 
+
+```{r}
+y <- x[, !x$seurat_clusters=="12"]
+DimPlot(y)
+```
+
+```{r}
+y <- FindVariableFeatures(y, nfeatures = 5000)
+VariableFeaturePlot(y)
+y <- ScaleData(y)
+y <- RunPCA(y)
+```
+
+```{r}
+ElbowPlot(y,ndims = 50)
+```
+
+```{r}
+y <- RunUMAP(y, dim = 1:20)
+```
+
+```{r}
+y <- FindNeighbors(y, dims = 1:20)
+```
+
+```{r}
+y <- FindClusters(y, algorithm = 4, resolution = 0.6)
+```
+
+```{r}
+DimPlot(y, label = TRUE) 
+```
+
+# NK cells
+
+```{r}
+z <- x[, !x$seurat_clusters %in% c("5","7","9","10","12","13","15","16")]
+DimPlot(z)
+```
+
+# Export 
+
+```{r}
+write_rds(z, "~/WT_live_NKonly_process.rds")
+```
+
+# session info 
+
+```{r}
+sessionInfo()
+```
+
+
+

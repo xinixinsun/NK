@@ -1,0 +1,170 @@
+---
+title: "Canek integration analysis of TIL_tumor (WT&KO)"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(Seurat)
+library(Canek)
+library(scmisc)
+set.seed(1)
+theme_set(cowplot::theme_cowplot())
+```
+
+# load data
+
+```{r}
+x <- read_rds("~/tumor_integration_process_sampling.rds")
+```
+
+```{r}
+DefaultAssay(x) <- "RNA"
+```
+
+## Fig.4A
+
+```{r}
+DimPlot(x, split.by="background", label = TRUE) + NoLegend()+ NoAxes()+
+  theme(plot.title = element_text(size=13, face = "bold.italic"))
+```
+
+## Fig.S4B
+
+```{r}
+ggplot(x[[]], aes(background, fill=seurat_clusters))+
+  geom_bar()
+```
+
+```{r}
+# tumor 
+tumor <- c("Dct","Pmel","Tyrp1","Mlana")
+```
+
+```{r}
+VlnPlot(x, features = tumor, ncol = 2, pt.size = 0.01)
+```
+
+```{r, fig.width=4, fig.height=4.5}
+DotPlot(x, features = tumor, dot.scale = 6)+ RotatedAxis()+
+  scale_colour_distiller(palette = "RdBu")
+```
+
+
+```{r}
+markers <- list(
+  "tumor" = c("Dct","Pmel","Tyrp1","Mlana"),
+  "NK" = c("Ncr1", "Nkg7"),
+  "T" = c("Cd3d", "Cd3e", "Cd4", "Cd8a", "Foxp3"), 
+  "B" = c("Cd79a"), 
+  "myeloid" = c("Cpa3","Xcr1","Cd209a","Ccr7","Apoe","C1qc","Plac8","Ace","S100a9"),
+  "pDC" = c("Siglech"),
+  "cytokines/chemokines" = c("Prf1","Ifng","Gzmb","Il12a","Il12b","Il2","Il15","Il18","Cxcr6","Cxcl16")
+)
+```
+
+
+```{r}
+x$celltype <- "tumor"
+x$celltype[x$seurat_clusters=="1"]<- "myeloid cells(cluster 1,5,8,13,15)"
+x$celltype[x$seurat_clusters=="2"]<- "B16F10(cluster 2,4,6,7,11,12)"
+x$celltype[x$seurat_clusters=="3"]<- "Undefined(cluster 3)"
+x$celltype[x$seurat_clusters=="4"]<- "B16F10(cluster 2,4,6,7,11,12)"
+x$celltype[x$seurat_clusters=="5"]<- "myeloid cells(cluster 1,5,8,13,15)"
+x$celltype[x$seurat_clusters=="6"]<- "B16F10(cluster 2,4,6,7,11,12)"
+x$celltype[x$seurat_clusters=="7"]<- "B16F10(cluster 2,4,6,7,11,12)"
+x$celltype[x$seurat_clusters=="8"]<- "myeloid cells(cluster 1,5,8,13,15)"
+x$celltype[x$seurat_clusters=="9"]<- "T cells(cluster 9)"
+x$celltype[x$seurat_clusters=="10"]<- "Dead cells(cluster 10)"
+x$celltype[x$seurat_clusters=="11"]<- "B16F10(cluster 2,4,6,7,11,12)"
+x$celltype[x$seurat_clusters=="12"]<- "B16F10(cluster 2,4,6,7,11,12)"
+x$celltype[x$seurat_clusters=="13"]<- "myeloid cells(cluster 1,5,8,13,15)"
+x$celltype[x$seurat_clusters=="14"]<- "Fibroblast(cluster 14)"
+x$celltype[x$seurat_clusters=="15"]<- "myeloid cells(cluster 1,5,8,13,15)"
+x$celltype[x$seurat_clusters=="16"]<- "NK cells(cluster 16)"
+x$celltype[x$seurat_clusters=="17"]<- "proliferation cells(cluster 17)"
+x$celltype[x$seurat_clusters=="18"]<- "Adipocytes(cluster 18)"
+x$celltype[x$seurat_clusters=="19"]<- "pDC(cluster 19)"
+
+DimPlot(x, group.by = "celltype", label = TRUE, label.size = 3)
+```
+
+## Fig.4H
+
+```{r, fig.width=16, fig.height=4}
+DotPlot(x, features = markers,group.by = "celltype",dot.scale = 6)+ RotatedAxis()+
+  scale_colour_distiller(palette = "RdBu")
+```
+
+## Fig.S4L
+
+```{r, fig.width=5, fig.height=4}
+VlnPlot(x, features = "Cxcl16", pt.size = 0.02)& NoLegend()
+```
+
+```{r}
+# subset tumor clusters
+y <- x[, x$seurat_clusters %in% c("2","3","4","6","7","10","11","12","17")]
+DimPlot(y)
+```
+
+```{r}
+y <- FindVariableFeatures(y, nfeatures = 5000)
+y <- ScaleData(y)
+y <- RunPCA(y)
+```
+
+```{r}
+y <- RunUMAP(y, dim = 1:20)
+```
+
+```{r}
+y <- FindNeighbors(y, dims = 1:20)
+```
+
+```{r,message=FALSE, warning=FALSE}
+y <- FindClusters(y, algorithm = 4, resolution = 0.6)
+```
+
+```{r}
+DimPlot(y, label = TRUE) + NoLegend()
+```
+
+## Fig.4B
+
+```{r, fig.width=6, fig.height=4}
+DimPlot(y, split.by="background", label = TRUE) + NoAxes() +
+  theme(plot.title = element_text(size=13, face = "bold.italic"))
+```
+
+## Fig.4C
+
+```{r, fig.width=8,fig.height=4}
+VlnPlot(y, c("Psmb8", "Cd74"), pt.size = .02, split.by = "background")
+```
+
+```{r,message=FALSE,warning=FALSE}
+deg <- FindAllMarkers(y,max.cells.per.ident = 500, verbose = FALSE)
+```
+
+```{r}
+top <- deg%>%filter(p_val_adj<0.01, abs(avg_log2FC)>1)
+```
+
+```{r}
+top_genes <- top_deg(deg)
+```
+
+```{r}
+k <-sample_cells(y, group = "seurat_clusters")
+```
+
+## Fig.S4C
+
+```{r, fig.width=7, fig.height=10}
+plot_heatmap(k[top_genes$gene,], column_split= k$seurat_clusters)
+```
+
+```{r}
+sessionInfo()
+```
